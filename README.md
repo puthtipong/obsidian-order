@@ -1,4 +1,4 @@
-# Prompt Mutation Helper
+# Obsidian Order Interro-Helper
 
 A local web tool for manually inspecting and comparing prompt transformations.
 You type a prompt, tick boxes, and get back every variant side by side — deterministic
@@ -12,29 +12,42 @@ system. All outputs are read-only cards you copy from.
 ## Quick start
 
 ```bash
-cd /path/to/pyrit-ms-repo
-export OPENAI_API_KEY=sk-...          # optional — deterministic transforms work without it
-export OPENAI_CHAT_MODEL=gpt-4o-mini  # optional, default shown
-
-.venv/bin/uvicorn examples.prompt_helper.app:app --reload --port 7860
+pip install -r requirements.txt
+uvicorn app:app --reload --port 7860
 ```
 
-Open `http://localhost:7860`. Ctrl+M (or Cmd+M) to generate; Enter in the language
-field to add a custom language.
+Open `http://localhost:7860`.
 
-The `--reload` flag watches for file changes and restarts automatically — useful during
-development.
+Paste your API key and pick a model in the **⚙ Settings** panel — it opens
+automatically if no key is configured. The panel also lets you set a separate model
+for the Custom Transform field and choose a reasoning effort level for models that
+support it (gpt-5.4, o3, o1, etc.).
+
+Alternatively, configure via environment variables before starting (the Settings panel
+will reflect these on load):
+
+```bash
+export OPENAI_API_KEY=sk-...
+export OPENAI_CHAT_MODEL=gpt-5.4          # transforms model, default shown
+export OPENAI_REASONING_MODEL=gpt-5.4    # custom transform model, default shown
+export OPENAI_CHAT_ENDPOINT=https://...  # change for Azure OpenAI
+uvicorn app:app --reload --port 7860
+```
+
+Deterministic transforms (encoding, obfuscation, structural) work without an API key.
+LLM-based transforms (technique, tactic, translation, custom) require one.
 
 ---
 
 ## File layout
 
 ```
-examples/prompt_helper/
-├── app.py           FastAPI server: lifecycle, routing, SSE streaming
-├── transforms.py    Transform registry: all 46 transforms + translation helper
+obsidian-order/
+├── app.py            FastAPI server: lifecycle, routing, SSE streaming, /config endpoint
+├── transforms.py     Transform registry: all 46 transforms + translation + custom
+├── requirements.txt  Python dependencies
 └── static/
-    └── index.html   Single-file frontend: no build step, no CDN
+    └── index.html    Single-file frontend: no build step, no CDN
 ```
 
 ---
