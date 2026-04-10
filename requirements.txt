@@ -1,4 +1,4 @@
-pyrit-ai>=0.12.1
+pyrit>=0.12.1
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 pydantic>=2.11.5

@@ -12,6 +12,8 @@ system. All outputs are read-only cards you copy from.
 ## Quick start
 
 ```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app:app --reload --port 8765
 ```
