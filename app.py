@@ -19,6 +19,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
+from typing import Optional
 
 from transforms import TRANSFORMS, apply_custom, apply_translation
 
@@ -37,20 +38,21 @@ STATIC_DIR = Path(__file__).parent / "static"
 async def lifespan(app: FastAPI):
     await initialize_pyrit_async(memory_db_type=IN_MEMORY)
 
+    # Boot-time config from env vars (optional — can be overridden via /config)
     api_key = os.environ.get("OPENAI_API_KEY")
     endpoint = os.getenv("OPENAI_CHAT_ENDPOINT", "https://api.openai.com/v1")
+    model = os.getenv("OPENAI_CHAT_MODEL", "gpt-5.4")
+    reasoning_model = os.getenv("OPENAI_REASONING_MODEL", "gpt-5.4")
+
+    app.state.config = {
+        "endpoint": endpoint,
+        "model": model,
+        "reasoning_model": reasoning_model,
+        "reasoning_effort": "medium",
+    }
+
     if api_key:
-        app.state.llm = OpenAIChatTarget(
-            endpoint=endpoint,
-            api_key=api_key,
-            model_name=os.getenv("OPENAI_CHAT_MODEL", "gpt-5.4"),
-        )
-        app.state.llm_reasoning = OpenAIChatTarget(
-            endpoint=endpoint,
-            api_key=api_key,
-            model_name=os.getenv("OPENAI_REASONING_MODEL", "gpt-5.4"),
-            extra_body_parameters={"reasoning_effort": "medium"},
-        )
+        _init_llm_targets(app, api_key, endpoint, model, reasoning_model, "medium")
         app.state.llm_available = True
     else:
         app.state.llm = None
@@ -60,12 +62,43 @@ async def lifespan(app: FastAPI):
     yield
 
 
+def _init_llm_targets(
+    app: FastAPI,
+    api_key: str,
+    endpoint: str,
+    model: str,
+    reasoning_model: str,
+    reasoning_effort: Optional[str],
+) -> None:
+    app.state.llm = OpenAIChatTarget(
+        endpoint=endpoint,
+        api_key=api_key,
+        model_name=model,
+    )
+    extra = {"reasoning_effort": reasoning_effort} if reasoning_effort and reasoning_effort != "none" else None
+    app.state.llm_reasoning = OpenAIChatTarget(
+        endpoint=endpoint,
+        api_key=api_key,
+        model_name=reasoning_model,
+        extra_body_parameters=extra,
+    )
+    app.state.llm_available = True
+
+
 app = FastAPI(title="Prompt Mutation Helper", lifespan=lifespan)
 
 
 # ---------------------------------------------------------------------------
 # Request / response models
 # ---------------------------------------------------------------------------
+
+
+class ConfigRequest(BaseModel):
+    api_key: str
+    endpoint: str = "https://api.openai.com/v1"
+    model: str = "gpt-5.4"
+    reasoning_model: str = "gpt-5.4"
+    reasoning_effort: Optional[str] = "medium"  # "none" | "low" | "medium" | "high"
 
 
 class TransformRequest(BaseModel):
@@ -94,7 +127,38 @@ async def list_transforms():
 
 @app.get("/status")
 async def status():
-    return {"llm_available": app.state.llm_available}
+    cfg = getattr(app.state, "config", {})
+    return {
+        "llm_available": app.state.llm_available,
+        "model": cfg.get("model"),
+        "reasoning_model": cfg.get("reasoning_model"),
+        "reasoning_effort": cfg.get("reasoning_effort"),
+    }
+
+
+@app.post("/config")
+async def update_config(req: ConfigRequest):
+    """Apply new API key / model config at runtime without restarting."""
+    _init_llm_targets(
+        app,
+        req.api_key,
+        req.endpoint,
+        req.model,
+        req.reasoning_model,
+        req.reasoning_effort,
+    )
+    app.state.config = {
+        "endpoint": req.endpoint,
+        "model": req.model,
+        "reasoning_model": req.reasoning_model,
+        "reasoning_effort": req.reasoning_effort,
+    }
+    return {
+        "ok": True,
+        "model": req.model,
+        "reasoning_model": req.reasoning_model,
+        "reasoning_effort": req.reasoning_effort,
+    }
 
 
 @app.post("/transform")

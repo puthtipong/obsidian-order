@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Prompt Mutation Helper</title>
+<title>Obsidian Order Interro-Helper</title>
 <style>
   :root {
     --bg: #0f1117;
@@ -429,6 +429,137 @@
     background: var(--yellow);
   }
 
+  /* ── Settings panel ─────────────────────────────────── */
+  .settings-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .settings-summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .settings-summary::-webkit-details-marker { display: none; }
+  .settings-summary:hover { background: var(--surface2); }
+  .settings-chevron {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+  }
+  details[open] .settings-chevron { transform: rotate(180deg); }
+  .settings-current {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-muted);
+  }
+  .settings-body {
+    padding: 14px;
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .settings-field.full-width { grid-column: 1 / -1; }
+  .settings-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .settings-label .settings-sublabel {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 0.7;
+  }
+  .settings-input, .settings-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 13px;
+    padding: 7px 10px;
+    outline: none;
+    transition: border-color 0.15s;
+    font-family: inherit;
+  }
+  .settings-input:focus, .settings-select:focus { border-color: var(--accent); }
+  .settings-input[type="password"] { font-family: var(--font-mono); letter-spacing: 2px; }
+  .settings-key-row { display: flex; gap: 6px; }
+  .settings-key-row .settings-input { flex: 1; }
+  .show-key-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 7px 10px;
+    border-radius: var(--radius);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .show-key-btn:hover { color: var(--text); border-color: var(--accent); }
+  .reasoning-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .reasoning-chips {
+    display: flex;
+    gap: 6px;
+  }
+  .reasoning-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s, color 0.1s;
+  }
+  .reasoning-chip.selected {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .reasoning-chip:disabled { opacity: 0.3; cursor: not-allowed; }
+  .settings-footer {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  #save-config-btn {
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: var(--radius);
+  }
+  #save-config-btn:hover:not(:disabled) { background: #8190ff; }
+  #config-status {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  #config-status.ok  { color: var(--green); }
+  #config-status.err { color: var(--red); }
+
   /* ── Scrollbars ──────────────────────────────────────── */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -440,13 +571,73 @@
 
 <header>
   <div>
-    <h1>Prompt Mutation Helper</h1>
-    <div class="subtitle">PyRIT · local · inspection tool</div>
+    <h1>Obsidian Order Interro-Helper</h1>
+    <div class="subtitle">PyRIT · local · prompt mutation tool</div>
   </div>
   <div id="llm-badge">checking…</div>
 </header>
 
 <main>
+
+  <!-- Settings panel -->
+  <details class="settings-panel" id="settings-panel">
+    <summary class="settings-summary">
+      ⚙ Settings
+      <span class="settings-current" id="settings-current"></span>
+      <span class="settings-chevron">▼</span>
+    </summary>
+    <div class="settings-body">
+
+      <div class="settings-field full-width">
+        <label class="settings-label" for="cfg-key">
+          API Key
+          <span class="settings-sublabel">— stored in memory only, never sent anywhere except the model endpoint</span>
+        </label>
+        <div class="settings-key-row">
+          <input class="settings-input" id="cfg-key" type="password" placeholder="sk-..." autocomplete="off">
+          <button class="show-key-btn" onclick="toggleKeyVisibility()">Show</button>
+        </div>
+      </div>
+
+      <div class="settings-field full-width">
+        <label class="settings-label" for="cfg-endpoint">
+          Endpoint
+          <span class="settings-sublabel">— change for Azure OpenAI</span>
+        </label>
+        <input class="settings-input" id="cfg-endpoint" type="text" value="https://api.openai.com/v1">
+      </div>
+
+      <div class="settings-field">
+        <label class="settings-label" for="cfg-model">Transforms model</label>
+        <select class="settings-select" id="cfg-model" onchange="onModelChange('cfg-model', 'reasoning-row-main')"></select>
+        <div class="reasoning-row" id="reasoning-row-main" style="display:none">
+          <span class="settings-label">Reasoning effort</span>
+          <div class="reasoning-chips" id="reasoning-chips-main"></div>
+        </div>
+      </div>
+
+      <div class="settings-field">
+        <label class="settings-label" for="cfg-reasoning-model">
+          Custom transform model
+          <span class="settings-sublabel">— used for the free-form custom field</span>
+        </label>
+        <select class="settings-select" id="cfg-reasoning-model" onchange="onModelChange('cfg-reasoning-model', 'reasoning-row-custom')"></select>
+        <div class="reasoning-row" id="reasoning-row-custom" style="display:none">
+          <span class="settings-label">Reasoning effort</span>
+          <div class="reasoning-chips" id="reasoning-chips-custom"></div>
+        </div>
+      </div>
+
+      <div class="settings-footer">
+        <button id="save-config-btn" onclick="saveConfig()">Apply</button>
+        <span id="config-status"></span>
+        <span style="font-size:11px; color:var(--text-muted); margin-left:auto;">
+          Anthropic support coming soon (PyRIT target not yet available)
+        </span>
+      </div>
+
+    </div>
+  </details>
 
   <!-- Prompt input -->
   <div class="prompt-row">
@@ -519,6 +710,136 @@
 // Constants
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Model catalogue
+// ---------------------------------------------------------------------------
+
+const MODELS = [
+  { id: 'gpt-4o-mini',      label: 'GPT-4o mini',   reasoning: false },
+  { id: 'gpt-4o',           label: 'GPT-4o',         reasoning: false },
+  { id: 'gpt-4.1',          label: 'GPT-4.1',        reasoning: false },
+  { id: 'gpt-4.1-mini',     label: 'GPT-4.1 mini',   reasoning: false },
+  { id: 'gpt-5.4',          label: 'GPT-5.4',        reasoning: true  },
+  { id: 'o3-mini',          label: 'o3-mini',         reasoning: true  },
+  { id: 'o3',               label: 'o3',              reasoning: true  },
+  { id: 'o1',               label: 'o1',              reasoning: true  },
+];
+
+const REASONING_EFFORTS = ['none', 'low', 'medium', 'high'];
+
+// Selected reasoning effort per selector id
+const reasoningState = { 'cfg-model': 'none', 'cfg-reasoning-model': 'medium' };
+
+function buildModelSelectors() {
+  ['cfg-model', 'cfg-reasoning-model'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    sel.innerHTML = MODELS.map(m =>
+      `<option value="${m.id}">${m.label}${m.reasoning ? ' ⚡' : ''}</option>`
+    ).join('');
+  });
+  // Defaults
+  document.getElementById('cfg-model').value = 'gpt-5.4';
+  document.getElementById('cfg-reasoning-model').value = 'gpt-5.4';
+  buildReasoningChips('cfg-model', 'reasoning-row-main', 'reasoning-chips-main');
+  buildReasoningChips('cfg-reasoning-model', 'reasoning-row-custom', 'reasoning-chips-custom');
+}
+
+function buildReasoningChips(selId, rowId, chipsId) {
+  const model = MODELS.find(m => m.id === document.getElementById(selId).value);
+  const row = document.getElementById(rowId);
+  const chips = document.getElementById(chipsId);
+  if (!model?.reasoning) { row.style.display = 'none'; return; }
+  row.style.display = 'flex';
+  const current = reasoningState[selId];
+  chips.innerHTML = REASONING_EFFORTS.map(e =>
+    `<button class="reasoning-chip${e === current ? ' selected' : ''}"
+       onclick="selectReasoning('${selId}','${chipsId}','${e}')">${e}</button>`
+  ).join('');
+}
+
+function onModelChange(selId, rowId) {
+  const chipsId = rowId === 'reasoning-row-main' ? 'reasoning-chips-main' : 'reasoning-chips-custom';
+  buildReasoningChips(selId, rowId, chipsId);
+}
+
+function selectReasoning(selId, chipsId, effort) {
+  reasoningState[selId] = effort;
+  document.querySelectorAll(`#${chipsId} .reasoning-chip`).forEach(c => {
+    c.classList.toggle('selected', c.textContent === effort);
+  });
+}
+
+function toggleKeyVisibility() {
+  const inp = document.getElementById('cfg-key');
+  const btn = event.target;
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'Hide'; }
+  else { inp.type = 'password'; btn.textContent = 'Show'; }
+}
+
+async function saveConfig() {
+  const key = document.getElementById('cfg-key').value.trim();
+  if (!key) { setConfigStatus('API key required', 'err'); return; }
+
+  const model          = document.getElementById('cfg-model').value;
+  const reasoningModel = document.getElementById('cfg-reasoning-model').value;
+  const modelMeta      = MODELS.find(m => m.id === model);
+  const rModelMeta     = MODELS.find(m => m.id === reasoningModel);
+
+  const reasoning_effort = rModelMeta?.reasoning
+    ? (reasoningState['cfg-reasoning-model'] === 'none' ? null : reasoningState['cfg-reasoning-model'])
+    : null;
+
+  const btn = document.getElementById('save-config-btn');
+  btn.disabled = true;
+  btn.textContent = 'Applying…';
+  setConfigStatus('', '');
+
+  try {
+    const res = await fetch('/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: key,
+        endpoint: document.getElementById('cfg-endpoint').value.trim() || 'https://api.openai.com/v1',
+        model,
+        reasoning_model: reasoningModel,
+        reasoning_effort,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail ?? res.statusText);
+
+    setConfigStatus('✓ Applied', 'ok');
+    updateBadge(true, model);
+    updateSettingsCurrent(model, reasoningModel, reasoning_effort);
+    document.getElementById('settings-panel').removeAttribute('open');
+  } catch (err) {
+    setConfigStatus('✗ ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Apply';
+  }
+}
+
+function setConfigStatus(msg, cls) {
+  const el = document.getElementById('config-status');
+  el.textContent = msg;
+  el.className = cls;
+}
+
+function updateBadge(available, model) {
+  const badge = document.getElementById('llm-badge');
+  if (available) { badge.textContent = `⚡ ${model}`; badge.className = 'ok'; }
+  else           { badge.textContent = '✗ No API key'; badge.className = 'err'; }
+}
+
+function updateSettingsCurrent(model, rModel, effort) {
+  const label = model === rModel
+    ? model + (effort ? ` · reasoning ${effort}` : '')
+    : `transforms: ${model} · custom: ${rModel}${effort ? ` (${effort})` : ''}`;
+  document.getElementById('settings-current').textContent = '— ' + label;
+}
+
 const PRESET_LANGS = [
   'French','Spanish','German','Portuguese','Italian','Dutch',
   'Russian','Polish','Turkish','Arabic','Hebrew','Persian',
@@ -556,15 +877,27 @@ let selectedLangs = new Set();
 // ---------------------------------------------------------------------------
 
 async function init() {
-  // Check LLM availability
+  buildModelSelectors();
+
+  // Check LLM availability and populate settings with current state
   const st = await fetch('/status').then(r => r.json());
-  const badge = document.getElementById('llm-badge');
-  if (st.llm_available) {
-    badge.textContent = '⚡ LLM ready';
-    badge.className = 'ok';
+  updateBadge(st.llm_available, st.model);
+
+  if (st.llm_available && st.model) {
+    // Reflect server-side env-var config in the selectors
+    const m = document.getElementById('cfg-model');
+    if ([...m.options].some(o => o.value === st.model)) m.value = st.model;
+    const rm = document.getElementById('cfg-reasoning-model');
+    if (st.reasoning_model && [...rm.options].some(o => o.value === st.reasoning_model)) {
+      rm.value = st.reasoning_model;
+    }
+    if (st.reasoning_effort) reasoningState['cfg-reasoning-model'] = st.reasoning_effort;
+    buildReasoningChips('cfg-model', 'reasoning-row-main', 'reasoning-chips-main');
+    buildReasoningChips('cfg-reasoning-model', 'reasoning-row-custom', 'reasoning-chips-custom');
+    updateSettingsCurrent(st.model, st.reasoning_model ?? st.model, st.reasoning_effort);
   } else {
-    badge.textContent = '✗ No API key';
-    badge.className = 'err';
+    // No key configured — open settings panel automatically
+    document.getElementById('settings-panel').setAttribute('open', '');
   }
 
   // Load transforms
