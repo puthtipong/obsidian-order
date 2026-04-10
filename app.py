@@ -3,9 +3,9 @@ Obsidian Order Interro-Helper — FastAPI backend.
 
 Start:
     export OPENAI_API_KEY=sk-...
-    uvicorn app:app --reload --port 7860
+    uvicorn app:app --reload --port 8765
 
-Then open http://localhost:7860
+Then open http://localhost:8765
 """
 
 from __future__ import annotations

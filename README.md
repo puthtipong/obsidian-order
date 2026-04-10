@@ -13,10 +13,10 @@ system. All outputs are read-only cards you copy from.
 
 ```bash
 pip install -r requirements.txt
-uvicorn app:app --reload --port 7860
+uvicorn app:app --reload --port 8765
 ```
 
-Open `http://localhost:7860`.
+Open `http://localhost:8765`.
 
 Paste your API key and pick a model in the **⚙ Settings** panel — it opens
 automatically if no key is configured. The panel also lets you set a separate model
@@ -31,7 +31,7 @@ export OPENAI_API_KEY=sk-...
 export OPENAI_CHAT_MODEL=gpt-5.4          # transforms model, default shown
 export OPENAI_REASONING_MODEL=gpt-5.4    # custom transform model, default shown
 export OPENAI_CHAT_ENDPOINT=https://...  # change for Azure OpenAI
-uvicorn app:app --reload --port 7860
+uvicorn app:app --reload --port 8765
 ```
 
 Deterministic transforms (encoding, obfuscation, structural) work without an API key.
