@@ -13,9 +13,8 @@ system. All outputs are read-only cards you copy from.
 
 ```bash
 python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app:app --reload --port 8765
+.venv/bin/pip install -r requirements.txt
+.venv/bin/uvicorn app:app --reload --port 8765
 ```
 
 Open `http://localhost:8765`.
@@ -33,7 +32,7 @@ export OPENAI_API_KEY=sk-...
 export OPENAI_CHAT_MODEL=gpt-5.4          # transforms model, default shown
 export OPENAI_REASONING_MODEL=gpt-5.4    # custom transform model, default shown
 export OPENAI_CHAT_ENDPOINT=https://...  # change for Azure OpenAI
-uvicorn app:app --reload --port 8765
+.venv/bin/uvicorn app:app --reload --port 8765
 ```
 
 Deterministic transforms (encoding, obfuscation, structural) work without an API key.
