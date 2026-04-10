@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prompt Mutation Helper</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3250;
+    --accent: #6c7fff;
+    --accent-dim: #3d4491;
+    --text: #e2e4f0;
+    --text-muted: #7b80a0;
+    --green: #4ade80;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --tag-encoding: #2563eb;
+    --tag-obfuscation: #7c3aed;
+    --tag-structural: #0891b2;
+    --tag-technique: #b45309;
+    --tag-tactic: #065f46;
+    --tag-translation: #9d174d;
+    --tag-custom: #7f1d1d;
+    --radius: 8px;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+  header .subtitle { color: var(--text-muted); font-size: 12px; }
+  #llm-badge {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  #llm-badge.ok  { background: #14532d; color: var(--green); }
+  #llm-badge.err { background: #450a0a; color: var(--red); }
+
+  main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── Context area ────────────────────────────────────── */
+  .context-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .context-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .context-hint {
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+  #context {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 10px 14px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s;
+    color: var(--text-muted);
+  }
+  #context:focus { border-color: var(--accent); color: var(--text); }
+
+  /* ── Prompt area ─────────────────────────────────────── */
+  .prompt-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  #prompt {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 12px 14px;
+    resize: vertical;
+    min-height: 80px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #prompt:focus { border-color: var(--accent); }
+
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 20px;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  #generate-btn {
+    background: var(--accent);
+    color: #fff;
+    white-space: nowrap;
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+  #generate-btn:hover:not(:disabled) { background: #8190ff; }
+
+  /* ── Transform grid ──────────────────────────────────── */
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+  }
+
+  .group-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+  .group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .group-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+  .select-all-btn {
+    background: none;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .select-all-btn:hover { background: var(--accent-dim); }
+
+  .checkbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    padding: 3px 4px;
+    border-radius: 4px;
+    transition: background 0.1s;
+  }
+  .checkbox-item:hover { background: var(--surface2); }
+  .checkbox-item input[type="checkbox"] {
+    width: 13px; height: 13px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .checkbox-item .item-label { font-size: 13px; }
+  .llm-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--yellow);
+    flex-shrink: 0;
+    margin-left: auto;
+    title: "Requires LLM";
+  }
+
+  /* ── Languages section ───────────────────────────────── */
+  .lang-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+  .lang-section .group-header { margin-bottom: 10px; }
+  .lang-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .lang-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--text);
+    font-size: 12px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s;
+  }
+  .lang-chip.selected {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .lang-custom-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  #lang-custom-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 13px;
+    padding: 6px 10px;
+    outline: none;
+    flex: 1;
+    max-width: 200px;
+    transition: border-color 0.15s;
+  }
+  #lang-custom-input:focus { border-color: var(--accent); }
+  #lang-add-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+  #lang-add-btn:hover { background: var(--accent-dim); border-color: var(--accent); }
+  .lang-clear-btn {
+    background: none;
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 4px 8px;
+    margin-left: auto;
+  }
+  .lang-clear-btn:hover { color: var(--text); }
+
+  /* ── Results ─────────────────────────────────────────── */
+  .results-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .results-header h2 { font-size: 14px; font-weight: 600; }
+  #result-count { color: var(--text-muted); font-size: 12px; }
+  #clear-results-btn {
+    background: none;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 4px 8px;
+    margin-left: auto;
+  }
+  #clear-results-btn:hover { color: var(--text); }
+
+  #results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 12px;
+  }
+
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s;
+  }
+  .result-card.loading { opacity: 0.6; }
+  .result-card.success { border-left: 3px solid var(--accent); }
+  .result-card.error   { border-left: 3px solid var(--red); }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .card-group-tag {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .tag-encoding    { background: #1e3a8a; color: #93c5fd; }
+  .tag-obfuscation { background: #4c1d95; color: #c4b5fd; }
+  .tag-structural  { background: #164e63; color: #67e8f9; }
+  .tag-technique   { background: #451a03; color: #fcd34d; }
+  .tag-tactic      { background: #064e3b; color: #6ee7b7; }
+  .tag-translation { background: #500724; color: #fbcfe8; }
+  .tag-custom      { background: #7f1d1d; color: #fca5a5; }
+
+  /* ── Custom transform section ────────────────────────── */
+  .custom-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+  .custom-section .group-header { margin-bottom: 10px; }
+  #custom-prompt {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 10px 14px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s;
+    color: var(--text-muted);
+    min-height: 80px;
+  }
+  #custom-prompt:focus { border-color: var(--accent); color: var(--text); }
+
+  .card-label { font-size: 13px; font-weight: 600; flex: 1; }
+  .card-meta { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+
+  .card-body { padding: 10px 12px; flex: 1; }
+
+  .card-result {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text);
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .card-result.error-text { color: var(--red); font-family: inherit; }
+
+  .skeleton {
+    height: 12px;
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 4px;
+    margin-bottom: 6px;
+  }
+  .skeleton:last-child { width: 60%; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  .card-footer {
+    padding: 6px 12px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+  }
+  .copy-btn {
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+  /* ── Legend ──────────────────────────────────────────── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .legend-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--yellow);
+  }
+
+  /* ── Scrollbars ──────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Prompt Mutation Helper</h1>
+    <div class="subtitle">PyRIT · local · inspection tool</div>
+  </div>
+  <div id="llm-badge">checking…</div>
+</header>
+
+<main>
+
+  <!-- Prompt input -->
+  <div class="prompt-row">
+    <textarea id="prompt" rows="3" placeholder="Enter your prompt…"></textarea>
+    <button id="generate-btn" onclick="generate()">Generate variants</button>
+  </div>
+
+  <!-- Context (optional) -->
+  <div class="context-row">
+    <label class="context-label" for="context">
+      Context
+      <span class="context-hint">optional — describe the target system and the role you're playing. LLM rewrites will be tailored to this.</span>
+    </label>
+    <textarea id="context" rows="2"
+      placeholder="e.g. It's a calendar app. The AI can read and delete events on the user's behalf. You're acting as a distressed user who needs to urgently remove a meeting."></textarea>
+  </div>
+
+  <!-- Custom LLM transform -->
+  <div class="custom-section">
+    <div class="group-header">
+      <span class="group-title" style="color:#fca5a5;">Custom Transform</span>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span style="font-size:11px; color:var(--text-muted);">⚡ LLM required</span>
+        <button class="lang-clear-btn" onclick="document.getElementById('custom-prompt').value=''">clear</button>
+      </div>
+    </div>
+    <textarea id="custom-prompt" rows="4"
+      placeholder="Describe multi-step transformation instructions in plain language, e.g.:&#10;First wrap the payload in a plausible story. Then encode only the instructions about the payload in ROT13 (with inline instructions to decode). Split the payload using programming syntax. Translate the non-story part into Spanish.&#10;&#10;Leave blank to skip."></textarea>
+  </div>
+
+  <!-- Transform checkboxes (built dynamically) -->
+  <div class="controls" id="controls-grid">
+    <div style="color: var(--text-muted); font-size: 12px; padding: 8px;">Loading transforms…</div>
+  </div>
+
+  <!-- Languages -->
+  <div class="lang-section">
+    <div class="group-header">
+      <span class="group-title" style="color: #fbcfe8;">Translation</span>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <span style="font-size:11px; color:var(--text-muted);">⚡ LLM required</span>
+        <button class="lang-clear-btn" onclick="clearLangs()">clear all</button>
+      </div>
+    </div>
+    <div class="lang-chips" id="lang-chips"></div>
+    <div class="lang-custom-row">
+      <input id="lang-custom-input" type="text" placeholder="Custom language…" maxlength="40">
+      <button id="lang-add-btn" onclick="addCustomLang()">+ Add</button>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <span style="font-size:11px; color:var(--text-muted); margin-right:4px;">Legend:</span>
+    <div class="legend-item"><div class="legend-dot"></div> yellow dot = LLM required</div>
+  </div>
+
+  <!-- Results -->
+  <div class="results-header">
+    <h2>Results</h2>
+    <span id="result-count"></span>
+    <button id="clear-results-btn" onclick="clearResults()">clear</button>
+  </div>
+  <div id="results-grid"></div>
+
+</main>
+
+<script>
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const PRESET_LANGS = [
+  'French','Spanish','German','Portuguese','Italian','Dutch',
+  'Russian','Polish','Turkish','Arabic','Hebrew','Persian',
+  'Hindi','Bengali','Urdu','Japanese','Chinese','Korean',
+  'Thai','Vietnamese','Indonesian','Swahili','Yoruba','Zulu',
+];
+
+const GROUP_ORDER = ['encoding','obfuscation','structural','technique','tactic'];
+const GROUP_LABELS = {
+  encoding:    'Encoding',
+  obfuscation: 'Obfuscation',
+  structural:  'Structural',
+  technique:   'Technique (LLM)',
+  tactic:      'Tactic (LLM)',
+};
+const GROUP_COLORS = {
+  encoding:    '#93c5fd',
+  obfuscation: '#c4b5fd',
+  structural:  '#67e8f9',
+  technique:   '#fcd34d',
+  tactic:      '#6ee7b7',
+  translation: '#fbcfe8',
+  custom:      '#fca5a5',
+};
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+let allTransforms = [];       // [{id, label, group, requires_llm}]
+let selectedLangs = new Set();
+
+// ---------------------------------------------------------------------------
+// Initialise
+// ---------------------------------------------------------------------------
+
+async function init() {
+  // Check LLM availability
+  const st = await fetch('/status').then(r => r.json());
+  const badge = document.getElementById('llm-badge');
+  if (st.llm_available) {
+    badge.textContent = '⚡ LLM ready';
+    badge.className = 'ok';
+  } else {
+    badge.textContent = '✗ No API key';
+    badge.className = 'err';
+  }
+
+  // Load transforms
+  allTransforms = await fetch('/transforms').then(r => r.json());
+  renderControls();
+  renderLangChips();
+
+  // Enter on textarea → generate
+  document.getElementById('prompt').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) generate();
+  });
+  document.getElementById('lang-custom-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addCustomLang();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Build checkbox grid
+// ---------------------------------------------------------------------------
+
+function renderControls() {
+  const grid = document.getElementById('controls-grid');
+  grid.innerHTML = '';
+
+  const byGroup = {};
+  for (const t of allTransforms) {
+    (byGroup[t.group] ??= []).push(t);
+  }
+
+  for (const group of GROUP_ORDER) {
+    const items = byGroup[group] ?? [];
+    if (!items.length) continue;
+
+    const box = document.createElement('div');
+    box.className = 'group-box';
+
+    const color = GROUP_COLORS[group] ?? '#fff';
+    box.innerHTML = `
+      <div class="group-header">
+        <span class="group-title" style="color:${color}">${GROUP_LABELS[group] ?? group}</span>
+        <button class="select-all-btn" onclick="selectAllGroup('${group}')">all</button>
+      </div>
+      <div class="checkbox-list" id="group-${group}"></div>
+    `;
+
+    const list = box.querySelector(`#group-${group}`);
+    for (const t of items) {
+      const item = document.createElement('label');
+      item.className = 'checkbox-item';
+      item.innerHTML = `
+        <input type="checkbox" id="cb-${t.id}" value="${t.id}">
+        <span class="item-label">${t.label}</span>
+        ${t.requires_llm ? '<span class="llm-dot" title="Requires LLM"></span>' : ''}
+      `;
+      list.appendChild(item);
+    }
+
+    grid.appendChild(box);
+  }
+}
+
+function selectAllGroup(group) {
+  const boxes = document.querySelectorAll(`#group-${group} input[type=checkbox]`);
+  const allChecked = [...boxes].every(b => b.checked);
+  boxes.forEach(b => b.checked = !allChecked);
+}
+
+// ---------------------------------------------------------------------------
+// Language chips
+// ---------------------------------------------------------------------------
+
+function renderLangChips() {
+  const container = document.getElementById('lang-chips');
+  container.innerHTML = '';
+  for (const lang of PRESET_LANGS) {
+    const chip = document.createElement('button');
+    chip.className = 'lang-chip' + (selectedLangs.has(lang) ? ' selected' : '');
+    chip.textContent = lang;
+    chip.onclick = () => toggleLang(lang, chip);
+    container.appendChild(chip);
+  }
+}
+
+function toggleLang(lang, chip) {
+  if (selectedLangs.has(lang)) {
+    selectedLangs.delete(lang);
+    chip.classList.remove('selected');
+  } else {
+    selectedLangs.add(lang);
+    chip.classList.add('selected');
+  }
+}
+
+function addCustomLang() {
+  const input = document.getElementById('lang-custom-input');
+  const lang = input.value.trim();
+  if (!lang) return;
+  input.value = '';
+
+  selectedLangs.add(lang);
+
+  // If it's already in the preset chips, update it
+  const chips = document.getElementById('lang-chips');
+  const existing = [...chips.querySelectorAll('.lang-chip')]
+    .find(c => c.textContent === lang);
+  if (existing) {
+    existing.classList.add('selected');
+    return;
+  }
+
+  // Otherwise add a new chip
+  const chip = document.createElement('button');
+  chip.className = 'lang-chip selected';
+  chip.textContent = lang;
+  chip.onclick = () => toggleLang(lang, chip);
+  chips.appendChild(chip);
+}
+
+function clearLangs() {
+  selectedLangs.clear();
+  renderLangChips();
+}
+
+// ---------------------------------------------------------------------------
+// Generate
+// ---------------------------------------------------------------------------
+
+async function generate() {
+  const prompt = document.getElementById('prompt').value.trim();
+  if (!prompt) {
+    document.getElementById('prompt').focus();
+    return;
+  }
+
+  const context = document.getElementById('context').value.trim();
+  const customPrompt = document.getElementById('custom-prompt').value.trim();
+  const selected = [...document.querySelectorAll('input[type=checkbox]:checked')]
+    .map(cb => cb.value);
+  const languages = [...selectedLangs];
+
+  if (!selected.length && !languages.length && !customPrompt) return;
+
+  const btn = document.getElementById('generate-btn');
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+
+  // Create placeholder cards
+  const grid = document.getElementById('results-grid');
+  const cardMap = {};
+
+  const allItems = [
+    ...selected.map(id => {
+      const t = allTransforms.find(x => x.id === id);
+      return { id, label: t?.label ?? id, group: t?.group ?? 'unknown' };
+    }),
+    ...languages.map(lang => ({
+      id: `lang-${lang}`, label: `→ ${lang}`, group: 'translation'
+    })),
+    ...(customPrompt ? [{ id: 'custom', label: 'Custom Transform', group: 'custom' }] : []),
+  ];
+
+  // Prepend new cards (newest at top)
+  for (const item of [...allItems].reverse()) {
+    const card = makeCard(item.id, item.label, item.group, null);
+    grid.prepend(card);
+    cardMap[item.id] = card;
+  }
+
+  updateResultCount();
+
+  // Stream results
+  try {
+    const resp = await fetch('/transform', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, selected, languages, context, custom_prompt: customPrompt }),
+    });
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop(); // keep incomplete line
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = JSON.parse(line.slice(6));
+        if (data.done) break;
+        if (cardMap[data.id]) {
+          fillCard(cardMap[data.id], data);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('SSE error:', err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate variants';
+    updateResultCount();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Card rendering
+// ---------------------------------------------------------------------------
+
+function makeCard(id, label, group, result) {
+  const card = document.createElement('div');
+  card.className = 'result-card loading';
+  card.id = `card-${id}`;
+
+  const tagClass = `tag-${group}`;
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="card-group-tag ${tagClass}">${group}</span>
+      <span class="card-label">${escHtml(label)}</span>
+      <span class="card-meta" id="meta-${id}"></span>
+    </div>
+    <div class="card-body" id="body-${id}">
+      <div class="skeleton"></div>
+      <div class="skeleton"></div>
+      <div class="skeleton" style="width:70%"></div>
+    </div>
+    <div class="card-footer" id="footer-${id}" style="display:none">
+      <button class="copy-btn" onclick="copyResult('${id}')">Copy</button>
+    </div>
+  `;
+  return card;
+}
+
+function fillCard(card, data) {
+  card.classList.remove('loading');
+
+  const body = document.getElementById(`body-${data.id}`);
+  const footer = document.getElementById(`footer-${data.id}`);
+  const meta = document.getElementById(`meta-${data.id}`);
+
+  if (data.error) {
+    card.classList.add('error');
+    body.innerHTML = `<div class="card-result error-text">${escHtml(data.error)}</div>`;
+  } else {
+    card.classList.add('success');
+    const text = data.result ?? '';
+    // Rough token estimate
+    const tokens = Math.round(text.length / 4);
+    meta.textContent = `~${tokens} tok`;
+    body.innerHTML = `<div class="card-result" id="result-${data.id}">${escHtml(text)}</div>`;
+    footer.style.display = 'flex';
+  }
+}
+
+function copyResult(id) {
+  const el = document.getElementById(`result-${id}`);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    const btn = el.closest('.result-card').querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 1500);
+  });
+}
+
+function clearResults() {
+  document.getElementById('results-grid').innerHTML = '';
+  updateResultCount();
+}
+
+function updateResultCount() {
+  const n = document.querySelectorAll('.result-card').length;
+  document.getElementById('result-count').textContent = n ? `${n} card${n > 1 ? 's' : ''}` : '';
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+init();
+</script>
+</body>
+</html>
